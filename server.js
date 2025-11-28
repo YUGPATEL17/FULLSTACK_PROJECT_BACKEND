@@ -1,9 +1,45 @@
 const express = require("express");
 const cors = require("cors");
+const fs = require("fs");
+const path = require("path");
+
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// ----------------------
+//   FILE FOR ORDERS
+// ----------------------
+const ORDERS_FILE = path.join(__dirname, "orders.json");
+
+function loadOrders() {
+  try {
+    if (!fs.existsSync(ORDERS_FILE)) {
+      return [];
+    }
+    const raw = fs.readFileSync(ORDERS_FILE, "utf-8");
+    if (!raw.trim()) return [];
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error("Error reading orders.json:", err);
+    return [];
+  }
+}
+
+function saveOrders(orders) {
+  try {
+    fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Error writing orders.json:", err);
+  }
+}
+
+// Make sure file exists (at least empty array)
+if (!fs.existsSync(ORDERS_FILE)) {
+  saveOrders([]);
+  console.log("✅ Created empty orders.json file");
+}
 
 // ----------------------
 //   COURSE DATA
@@ -33,7 +69,7 @@ const courses = [
   },
   {
     id: 3,
-    title: "Drama & Theater",
+    title: "Drama & Theatre",
     description: "Act, perform, and express yourself with confidence.",
     location: "Auditorium",
     price: 22,
@@ -125,17 +161,17 @@ const courses = [
 //   ROUTES
 // ----------------------
 
-// Test homepage
+// Simple homepage
 app.get("/", (req, res) => {
   res.send("Backend running ✅");
 });
 
-// Return all courses
+// Get all courses
 app.get("/api/courses", (req, res) => {
   res.json({ courses });
 });
 
-// --- NEW TEST ROUTE FOR ORDERS ---
+// Test route for orders
 app.get("/api/orders/test", (req, res) => {
   res.json({
     message: "Orders test endpoint working ✅",
@@ -148,10 +184,53 @@ app.get("/api/orders/test", (req, res) => {
   });
 });
 
-// Receive an order from frontend
+// NEW: get all saved orders (for teacher / debugging)
+app.get("/api/orders", (req, res) => {
+  const orders = loadOrders();
+  res.json({ orders });
+});
+
+// Receive and save an order
 app.post("/api/orders", (req, res) => {
-  console.log("📥 New order received:", req.body);
-  res.json({ success: true, message: "Order received!" });
+  const body = req.body || {};
+
+  // support either "items" or "cartItems" from frontend
+  const items = body.items || body.cartItems || [];
+
+  if (!body.name || !body.phone || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid order. Name, phone, and at least one item are required.",
+    });
+  }
+
+  // calculate total from items
+  const total = items.reduce((sum, item) => {
+    const price = Number(item.price) || 0;
+    const qty = Number(item.quantity) || 0;
+    return sum + price * qty;
+  }, 0);
+
+  const newOrder = {
+    id: Date.now(), // simple unique id
+    name: body.name,
+    phone: body.phone,
+    items,
+    total,
+    createdAt: new Date().toISOString(),
+  };
+
+  const orders = loadOrders();
+  orders.push(newOrder);
+  saveOrders(orders);
+
+  console.log("📥 New order saved:", newOrder);
+
+  res.json({
+    success: true,
+    message: "Order received and saved!",
+    order: newOrder,
+  });
 });
 
 // ----------------------
