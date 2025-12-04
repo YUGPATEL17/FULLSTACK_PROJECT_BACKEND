@@ -55,10 +55,41 @@ app.get("/", (req, res) => {
 // 3. Lessons API
 // -----------------------
 
-// Get all lessons from MongoDB
+// GET lessons with optional search + sort
+// Examples:
+//   /api/courses
+//   /api/courses?q=math
+//   /api/courses?q=club&sortField=price&sortOrder=desc
 app.get("/api/courses", async (req, res) => {
   try {
-    const lessons = await Lesson.find().sort({ id: 1 });
+    const { q, sortField, sortOrder } = req.query;
+
+    // 3.1 Build search filter
+    const filter = {};
+
+    if (q && q.trim() !== "") {
+      const searchText = q.trim();
+      const searchRegex = new RegExp(searchText, "i"); // case-insensitive
+
+      // Search in title, description and location
+      filter.$or = [
+        { title: searchRegex },
+        { description: searchRegex },
+        { location: searchRegex },
+      ];
+    }
+
+    // 3.2 Build sort options
+    const allowedFields = ["id", "title", "price", "spaces"];
+    const fieldToSort = allowedFields.includes(sortField) ? sortField : "id";
+    const order = sortOrder === "desc" ? -1 : 1; // default asc
+
+    const sortOptions = { [fieldToSort]: order };
+
+    // 3.3 Query MongoDB
+    const lessons = await Lesson.find(filter).sort(sortOptions);
+
+    // 3.4 Return lessons
     res.json({ courses: lessons });
   } catch (err) {
     console.error("Error in GET /api/courses:", err);
@@ -133,19 +164,6 @@ app.get("/api/orders", async (req, res) => {
     console.error("Error in GET /api/orders:", err);
     res.status(500).json({ message: "Error fetching orders" });
   }
-});
-
-// Simple test route (still useful)
-app.get("/api/orders/test", (req, res) => {
-  res.json({
-    message: "Orders test endpoint working ✅",
-    exampleOrder: {
-      name: "Test User",
-      phone: "07123456789",
-      items: [{ id: 1, title: "Art & Painting", quantity: 2, price: 10 }],
-      total: 20,
-    },
-  });
 });
 
 // -----------------------
