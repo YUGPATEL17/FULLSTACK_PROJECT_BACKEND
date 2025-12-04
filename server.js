@@ -1,85 +1,141 @@
 // backend/server.js
-
-require("dotenv").config();
-
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
+require("dotenv").config();
 
-const Lesson = require("./models/Lesson");
-const Order = require("./models/Order");
-
-// Seed data for first run (from data.js file)
-const seedData = require("./data");
-const seedCourses = Array.isArray(seedData)
-  ? seedData
-  : seedData.courses || [];
+const courses = require("./data"); // local seed data array
 
 const app = express();
-const PORT = process.env.PORT || 4000;
-const MONGO_URI = process.env.MONGO_URI;
-
-// ---------------------
-// 1. Middleware
-// ---------------------
 app.use(cors());
 app.use(express.json());
 
-// ---------------------
-// 2. Helper functions
-// ---------------------
-function calculateTotal(items = []) {
-  return items.reduce(
-    (sum, item) => sum + (item.price || 0) * (item.quantity || 0),
-    0
-  );
-}
+const PORT = process.env.PORT || 4000;
 
-async function getLessonsFromDb() {
-  let lessons = await Lesson.find().lean();
+// -----------------------
+// 1. Mongoose models
+// -----------------------
+const lessonSchema = new mongoose.Schema({
+  id: Number,
+  title: String,
+  description: String,
+  location: String,
+  price: Number,
+  spaces: Number,
+  rating: Number,
+  image: String,
+});
 
-  // First run: if DB is empty, seed from data.js
-  if (!lessons.length && seedCourses.length) {
-    await Lesson.insertMany(seedCourses);
-    console.log(`🌱 Seeded ${seedCourses.length} lessons into MongoDB`);
-    lessons = await Lesson.find().lean();
-  }
+const orderItemSchema = new mongoose.Schema({
+  id: Number,
+  title: String,
+  price: Number,
+  quantity: Number,
+});
 
-  return lessons;
-}
+const orderSchema = new mongoose.Schema({
+  name: String,
+  phone: String,
+  items: [orderItemSchema],
+  total: Number,
+  createdAt: { type: Date, default: Date.now },
+});
 
-// one handler reused for /api/courses, /courses, /lessons, /api/lessons
-async function handleGetCourses(req, res) {
-  try {
-    const lessons = await getLessonsFromDb();
-    // keep the same shape the frontend expects: { courses: [...] }
-    res.json({ courses: lessons });
-  } catch (err) {
-    console.error("❌ Error fetching lessons:", err);
-    res.status(500).json({ message: "Error fetching lessons" });
-  }
-}
+const Lesson = mongoose.model("Lesson", lessonSchema);
+const Order = mongoose.model("Order", orderSchema);
 
-// ---------------------
-// 3. Basic route
-// ---------------------
+// -----------------------
+// 2. Basic health route
+// -----------------------
 app.get("/", (req, res) => {
   res.send("Backend running ✅");
 });
 
-// ---------------------
-// 4. Lesson routes
-// ---------------------
-app.get("/api/courses", handleGetCourses);
-app.get("/courses", handleGetCourses);
-app.get("/api/lessons", handleGetCourses);
-app.get("/lessons", handleGetCourses);
+// -----------------------
+// 3. Lessons API
+// -----------------------
 
-// ---------------------
-// 5. Order routes
-// ---------------------
+// Get all lessons from MongoDB
+app.get("/api/courses", async (req, res) => {
+  try {
+    const lessons = await Lesson.find().sort({ id: 1 });
+    res.json({ courses: lessons });
+  } catch (err) {
+    console.error("Error in GET /api/courses:", err);
+    res.status(500).json({ message: "Error fetching lessons" });
+  }
+});
 
-// Simple test route (for browser check)
+// Seed lessons into MongoDB from data.js
+// Call this once in the browser: http://localhost:4000/api/courses/import
+app.post("/api/courses/import", async (req, res) => {
+  try {
+    await Lesson.deleteMany({});
+    const inserted = await Lesson.insertMany(courses);
+    console.log(`✅ Imported ${inserted.length} lessons into MongoDB`);
+    res.json({ message: "Lessons imported", count: inserted.length });
+  } catch (err) {
+    console.error("Error importing lessons:", err);
+    res.status(500).json({ message: "Error importing lessons" });
+  }
+});
+
+// -----------------------
+// 4. Orders API
+// -----------------------
+
+// Save a new order AND reduce lesson spaces
+app.post("/api/orders", async (req, res) => {
+  try {
+    const { name, phone, items, total } = req.body;
+
+    if (!name || !phone || !items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: "Invalid order data" });
+    }
+
+    // 4.1 Reduce spaces for each lesson in the order
+    for (const item of items) {
+      const lesson = await Lesson.findOne({ id: item.id });
+
+      if (!lesson) {
+        console.warn(`Lesson with id ${item.id} not found, skipping space update.`);
+        continue;
+      }
+
+      // Ensure we don't go below 0
+      const newSpaces = Math.max(0, lesson.spaces - item.quantity);
+      lesson.spaces = newSpaces;
+      await lesson.save();
+    }
+
+    // 4.2 Save the order itself
+    const newOrder = new Order({ name, phone, items, total });
+    await newOrder.save();
+
+    console.log("✅ New order saved:", newOrder.toObject());
+
+    res.status(201).json({
+      message: "Order saved successfully",
+      order: newOrder,
+    });
+  } catch (err) {
+    console.error("Error in POST /api/orders:", err);
+    res.status(500).json({ message: "Error saving order" });
+  }
+});
+
+// Get all orders for Orders admin page
+app.get("/api/orders", async (req, res) => {
+  try {
+    const orders = await Order.find().sort({ createdAt: -1 });
+    res.json({ orders });
+  } catch (err) {
+    console.error("Error in GET /api/orders:", err);
+    res.status(500).json({ message: "Error fetching orders" });
+  }
+});
+
+// Simple test route (still useful)
 app.get("/api/orders/test", (req, res) => {
   res.json({
     message: "Orders test endpoint working ✅",
@@ -92,61 +148,21 @@ app.get("/api/orders/test", (req, res) => {
   });
 });
 
-// Get all orders (used by Orders page)
-app.get("/api/orders", async (req, res) => {
+// -----------------------
+// 5. Start server + connect Mongo
+// -----------------------
+async function startServer() {
   try {
-    const orders = await Order.find().sort({ createdAt: -1 }).lean();
-    res.json({ orders });
-  } catch (err) {
-    console.error("❌ Error fetching orders:", err);
-    res.status(500).json({ message: "Error fetching orders" });
-  }
-});
-
-// Create a new order (used by checkout)
-app.post("/api/orders", async (req, res) => {
-  try {
-    const { name, phone, items, total } = req.body;
-
-    if (!name || !phone || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({
-        message: "Invalid order data. Name, phone and at least one item required.",
-      });
-    }
-
-    const finalTotal =
-      typeof total === "number" ? total : calculateTotal(items);
-
-    const newOrder = await Order.create({
-      name: name.trim(),
-      phone: phone.trim(),
-      items,
-      total: finalTotal,
-    });
-
-    console.log("✅ New order received:", newOrder);
-
-    res.status(201).json({
-      message: "Order saved successfully",
-      order: newOrder,
-    });
-  } catch (err) {
-    console.error("❌ Error saving order:", err);
-    res.status(500).json({ message: "Error saving order" });
-  }
-});
-
-// ---------------------
-// 6. Start server + connect MongoDB
-// ---------------------
-mongoose
-  .connect(MONGO_URI)
-  .then(() => {
+    await mongoose.connect(process.env.MONGO_URI);
     console.log("✅ Connected to MongoDB Atlas");
+
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
     });
-  })
-  .catch((err) => {
-    console.error("❌ MongoDB connection error:", err);
-  });
+  } catch (err) {
+    console.error("❌ Failed to connect to MongoDB:", err);
+    process.exit(1);
+  }
+}
+
+startServer();
