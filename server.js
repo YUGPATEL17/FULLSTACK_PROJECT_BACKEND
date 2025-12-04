@@ -1,87 +1,85 @@
 // backend/server.js
 
-require("dotenv").config();           // load .env file
+require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
-const fs = require("fs");
-const path = require("path");
 const mongoose = require("mongoose");
+
+const Lesson = require("./models/Lesson");
+const Order = require("./models/Order");
+
+// Seed data for first run (from data.js file)
+const seedData = require("./data");
+const seedCourses = Array.isArray(seedData)
+  ? seedData
+  : seedData.courses || [];
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+const MONGO_URI = process.env.MONGO_URI;
 
-// ----------------------
-// 1. MongoDB connection
-// ----------------------
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("✅ Connected to MongoDB Atlas");
-  })
-  .catch((err) => {
-    console.error("❌ MongoDB connection error:", err.message);
-  });
-
-// ----------------------
-// 2. Middleware
-// ----------------------
+// ---------------------
+// 1. Middleware
+// ---------------------
 app.use(cors());
 app.use(express.json());
 
-// ----------------------
-// 3. Course data (still local file for now)
-// ----------------------
-const courses = require("./data"); // data.js exports the array
+// ---------------------
+// 2. Helper functions
+// ---------------------
+function calculateTotal(items = []) {
+  return items.reduce(
+    (sum, item) => sum + (item.price || 0) * (item.quantity || 0),
+    0
+  );
+}
 
-// ----------------------
-// 4. Orders helper functions (orders.json file)
-// ----------------------
-const ordersFilePath = path.join(__dirname, "orders.json");
+async function getLessonsFromDb() {
+  let lessons = await Lesson.find().lean();
 
-function readOrdersFromFile() {
+  // First run: if DB is empty, seed from data.js
+  if (!lessons.length && seedCourses.length) {
+    await Lesson.insertMany(seedCourses);
+    console.log(`🌱 Seeded ${seedCourses.length} lessons into MongoDB`);
+    lessons = await Lesson.find().lean();
+  }
+
+  return lessons;
+}
+
+// one handler reused for /api/courses, /courses, /lessons, /api/lessons
+async function handleGetCourses(req, res) {
   try {
-    if (!fs.existsSync(ordersFilePath)) {
-      return [];
-    }
-    const fileData = fs.readFileSync(ordersFilePath, "utf8");
-    if (!fileData.trim()) return [];
-    return JSON.parse(fileData);
+    const lessons = await getLessonsFromDb();
+    // keep the same shape the frontend expects: { courses: [...] }
+    res.json({ courses: lessons });
   } catch (err) {
-    console.error("Error reading orders.json:", err);
-    return [];
+    console.error("❌ Error fetching lessons:", err);
+    res.status(500).json({ message: "Error fetching lessons" });
   }
 }
 
-function writeOrdersToFile(orders) {
-  try {
-    fs.writeFileSync(ordersFilePath, JSON.stringify(orders, null, 2));
-  } catch (err) {
-    console.error("Error writing orders.json:", err);
-  }
-}
-
-// ----------------------
-// 5. Routes
-// ----------------------
-
-// Health check
+// ---------------------
+// 3. Basic route
+// ---------------------
 app.get("/", (req, res) => {
   res.send("Backend running ✅");
 });
 
-// Get all courses
-app.get("/api/courses", (req, res) => {
-  res.json({ courses });
-});
+// ---------------------
+// 4. Lesson routes
+// ---------------------
+app.get("/api/courses", handleGetCourses);
+app.get("/courses", handleGetCourses);
+app.get("/api/lessons", handleGetCourses);
+app.get("/lessons", handleGetCourses);
 
-// Get all orders (for Orders page)
-app.get("/api/orders", (req, res) => {
-  const orders = readOrdersFromFile();
-  res.json({ orders });
-});
+// ---------------------
+// 5. Order routes
+// ---------------------
 
-// Simple test route to check orders API
+// Simple test route (for browser check)
 app.get("/api/orders/test", (req, res) => {
   res.json({
     message: "Orders test endpoint working ✅",
@@ -94,38 +92,61 @@ app.get("/api/orders/test", (req, res) => {
   });
 });
 
-// Place an order
-app.post("/api/orders", (req, res) => {
-  const { name, phone, items, total } = req.body;
-
-  if (!name || !phone || !Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ message: "Invalid order data" });
+// Get all orders (used by Orders page)
+app.get("/api/orders", async (req, res) => {
+  try {
+    const orders = await Order.find().sort({ createdAt: -1 }).lean();
+    res.json({ orders });
+  } catch (err) {
+    console.error("❌ Error fetching orders:", err);
+    res.status(500).json({ message: "Error fetching orders" });
   }
+});
 
-  const newOrder = {
-    id: Date.now(),
-    name,
-    phone,
-    items,
-    total,
-    createdAt: new Date().toISOString(),
-  };
+// Create a new order (used by checkout)
+app.post("/api/orders", async (req, res) => {
+  try {
+    const { name, phone, items, total } = req.body;
 
-  const orders = readOrdersFromFile();
-  orders.push(newOrder);
-  writeOrdersToFile(orders);
+    if (!name || !phone || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        message: "Invalid order data. Name, phone and at least one item required.",
+      });
+    }
 
-  console.log("✅ New order received:", newOrder);
+    const finalTotal =
+      typeof total === "number" ? total : calculateTotal(items);
 
-  res.status(201).json({
-    message: "Order received and stored",
-    order: newOrder,
+    const newOrder = await Order.create({
+      name: name.trim(),
+      phone: phone.trim(),
+      items,
+      total: finalTotal,
+    });
+
+    console.log("✅ New order received:", newOrder);
+
+    res.status(201).json({
+      message: "Order saved successfully",
+      order: newOrder,
+    });
+  } catch (err) {
+    console.error("❌ Error saving order:", err);
+    res.status(500).json({ message: "Error saving order" });
+  }
+});
+
+// ---------------------
+// 6. Start server + connect MongoDB
+// ---------------------
+mongoose
+  .connect(MONGO_URI)
+  .then(() => {
+    console.log("✅ Connected to MongoDB Atlas");
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("❌ MongoDB connection error:", err);
   });
-});
-
-// ----------------------
-// 6. Start server
-// ----------------------
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
