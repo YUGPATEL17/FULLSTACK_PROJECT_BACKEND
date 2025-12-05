@@ -1,10 +1,13 @@
 // backend/server.js
+"use strict";
+
 const express = require("express");
 const cors = require("cors");
 const { MongoClient } = require("mongodb");
 require("dotenv").config();
 
-const courses = require("./data"); // local seed data array
+// IMPORTANT: data.js probably exports { courses: [...] }
+const { courses } = require("./data"); // local seed data array
 
 const app = express();
 app.use(cors());
@@ -25,17 +28,18 @@ if (!MONGO_URI) {
 let db;
 let lessonsCollection;
 let ordersCollection;
+let client; // keep reference to reuse
 
 async function connectToMongo() {
   try {
-    const client = new MongoClient(MONGO_URI);
+    client = new MongoClient(MONGO_URI);
     await client.connect();
-    db = client.db(DB_NAME);
 
+    db = client.db(DB_NAME);
     lessonsCollection = db.collection("lessons");
     ordersCollection = db.collection("orders");
 
-    console.log("✅ Connected to MongoDB Atlas");
+    console.log("✅ Connected to MongoDB Atlas (DB:", DB_NAME, ")");
   } catch (err) {
     console.error("❌ Failed to connect to MongoDB:", err);
     process.exit(1);
@@ -86,7 +90,7 @@ app.get("/api/courses", async (req, res) => {
     }
 
     // 3.2 Build sort options
-    const allowedFields = ["id", "title", "price", "spaces"];
+    const allowedFields = ["id", "title", "location", "price", "spaces"];
     const fieldToSort = allowedFields.includes(sortField) ? sortField : "id";
     const order = sortOrder === "desc" ? -1 : 1; // default asc
 
@@ -107,12 +111,25 @@ app.get("/api/courses", async (req, res) => {
 });
 
 // Seed lessons into MongoDB from data.js
-// Call this once in the browser: http://localhost:4000/api/courses/import
+// Call this once (locally or on Render):
+//   POST http://localhost:4000/api/courses/import
+//   POST https://your-render-url.onrender.com/api/courses/import
 app.post("/api/courses/import", async (req, res) => {
   try {
+    if (!Array.isArray(courses)) {
+      console.error("❌ courses from data.js is not an array");
+      return res
+        .status(500)
+        .json({ message: "Seed data is not an array (check data.js export)" });
+    }
+
     await lessonsCollection.deleteMany({});
     const insertResult = await lessonsCollection.insertMany(courses);
-    console.log(`✅ Imported ${insertResult.insertedCount} lessons into MongoDB`);
+
+    console.log(
+      `✅ Imported ${insertResult.insertedCount} lessons into MongoDB (${DB_NAME}.lessons)`
+    );
+
     res.json({
       message: "Lessons imported",
       count: insertResult.insertedCount,
@@ -132,7 +149,13 @@ app.post("/api/orders", async (req, res) => {
   try {
     const { name, phone, items, total } = req.body;
 
-    if (!name || !phone || !items || !Array.isArray(items) || items.length === 0) {
+    if (
+      !name ||
+      !phone ||
+      !items ||
+      !Array.isArray(items) ||
+      items.length === 0
+    ) {
       return res.status(400).json({ message: "Invalid order data" });
     }
 
@@ -141,7 +164,9 @@ app.post("/api/orders", async (req, res) => {
       const lesson = await lessonsCollection.findOne({ id: item.id });
 
       if (!lesson) {
-        console.warn(`Lesson with id ${item.id} not found, skipping space update.`);
+        console.warn(
+          `⚠️ Lesson with id ${item.id} not found, skipping space update.`
+        );
         continue;
       }
 
