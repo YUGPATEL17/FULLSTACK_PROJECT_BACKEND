@@ -1,7 +1,7 @@
 // backend/server.js
 const express = require("express");
 const cors = require("cors");
-const mongoose = require("mongoose");
+const { MongoClient } = require("mongodb");
 require("dotenv").config();
 
 const courses = require("./data"); // local seed data array
@@ -11,38 +11,36 @@ app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 4000;
+const MONGO_URI = process.env.MONGO_URI;
+const DB_NAME = process.env.DB_NAME || "afterSchoolDB";
+
+if (!MONGO_URI) {
+  console.error("❌ MONGO_URI is not set in .env");
+  process.exit(1);
+}
 
 // -----------------------
-// 1. Mongoose models
+// 1. MongoDB connection
 // -----------------------
-const lessonSchema = new mongoose.Schema({
-  id: Number,
-  title: String,
-  description: String,
-  location: String,
-  price: Number,
-  spaces: Number,
-  rating: Number,
-  image: String,
-});
+let db;
+let lessonsCollection;
+let ordersCollection;
 
-const orderItemSchema = new mongoose.Schema({
-  id: Number,
-  title: String,
-  price: Number,
-  quantity: Number,
-});
+async function connectToMongo() {
+  try {
+    const client = new MongoClient(MONGO_URI);
+    await client.connect();
+    db = client.db(DB_NAME);
 
-const orderSchema = new mongoose.Schema({
-  name: String,
-  phone: String,
-  items: [orderItemSchema],
-  total: Number,
-  createdAt: { type: Date, default: Date.now },
-});
+    lessonsCollection = db.collection("lessons");
+    ordersCollection = db.collection("orders");
 
-const Lesson = mongoose.model("Lesson", lessonSchema);
-const Order = mongoose.model("Order", orderSchema);
+    console.log("✅ Connected to MongoDB Atlas");
+  } catch (err) {
+    console.error("❌ Failed to connect to MongoDB:", err);
+    process.exit(1);
+  }
+}
 
 // -----------------------
 // 2. Basic health route
@@ -71,11 +69,19 @@ app.get("/api/courses", async (req, res) => {
       const searchText = q.trim();
       const searchRegex = new RegExp(searchText, "i"); // case-insensitive
 
-      // Search in title, description and location
+      // If q looks like a number, try to match price/spaces as well
+      const numericValue = Number(searchText);
+      const numericFilters = [];
+      if (!isNaN(numericValue)) {
+        numericFilters.push({ price: numericValue });
+        numericFilters.push({ spaces: numericValue });
+      }
+
       filter.$or = [
         { title: searchRegex },
         { description: searchRegex },
         { location: searchRegex },
+        ...numericFilters,
       ];
     }
 
@@ -87,7 +93,10 @@ app.get("/api/courses", async (req, res) => {
     const sortOptions = { [fieldToSort]: order };
 
     // 3.3 Query MongoDB
-    const lessons = await Lesson.find(filter).sort(sortOptions);
+    const lessons = await lessonsCollection
+      .find(filter)
+      .sort(sortOptions)
+      .toArray();
 
     // 3.4 Return lessons
     res.json({ courses: lessons });
@@ -101,10 +110,13 @@ app.get("/api/courses", async (req, res) => {
 // Call this once in the browser: http://localhost:4000/api/courses/import
 app.post("/api/courses/import", async (req, res) => {
   try {
-    await Lesson.deleteMany({});
-    const inserted = await Lesson.insertMany(courses);
-    console.log(`✅ Imported ${inserted.length} lessons into MongoDB`);
-    res.json({ message: "Lessons imported", count: inserted.length });
+    await lessonsCollection.deleteMany({});
+    const insertResult = await lessonsCollection.insertMany(courses);
+    console.log(`✅ Imported ${insertResult.insertedCount} lessons into MongoDB`);
+    res.json({
+      message: "Lessons imported",
+      count: insertResult.insertedCount,
+    });
   } catch (err) {
     console.error("Error importing lessons:", err);
     res.status(500).json({ message: "Error importing lessons" });
@@ -126,28 +138,39 @@ app.post("/api/orders", async (req, res) => {
 
     // 4.1 Reduce spaces for each lesson in the order
     for (const item of items) {
-      const lesson = await Lesson.findOne({ id: item.id });
+      const lesson = await lessonsCollection.findOne({ id: item.id });
 
       if (!lesson) {
         console.warn(`Lesson with id ${item.id} not found, skipping space update.`);
         continue;
       }
 
-      // Ensure we don't go below 0
-      const newSpaces = Math.max(0, lesson.spaces - item.quantity);
-      lesson.spaces = newSpaces;
-      await lesson.save();
+      const currentSpaces = lesson.spaces || 0;
+      const newSpaces = Math.max(0, currentSpaces - item.quantity);
+
+      await lessonsCollection.updateOne(
+        { id: item.id },
+        { $set: { spaces: newSpaces } }
+      );
     }
 
     // 4.2 Save the order itself
-    const newOrder = new Order({ name, phone, items, total });
-    await newOrder.save();
+    const orderDoc = {
+      name,
+      phone,
+      items,
+      total,
+      createdAt: new Date(),
+    };
 
-    console.log("✅ New order saved:", newOrder.toObject());
+    const result = await ordersCollection.insertOne(orderDoc);
+    const savedOrder = { _id: result.insertedId, ...orderDoc };
+
+    console.log("✅ New order saved:", savedOrder);
 
     res.status(201).json({
       message: "Order saved successfully",
-      order: newOrder,
+      order: savedOrder,
     });
   } catch (err) {
     console.error("Error in POST /api/orders:", err);
@@ -158,7 +181,10 @@ app.post("/api/orders", async (req, res) => {
 // Get all orders for Orders admin page
 app.get("/api/orders", async (req, res) => {
   try {
-    const orders = await Order.find().sort({ createdAt: -1 });
+    const orders = await ordersCollection
+      .find({})
+      .sort({ createdAt: -1 })
+      .toArray();
     res.json({ orders });
   } catch (err) {
     console.error("Error in GET /api/orders:", err);
@@ -167,20 +193,14 @@ app.get("/api/orders", async (req, res) => {
 });
 
 // -----------------------
-// 5. Start server + connect Mongo
+// 5. Start server
 // -----------------------
 async function startServer() {
-  try {
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log("✅ Connected to MongoDB Atlas");
+  await connectToMongo();
 
-    app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-    });
-  } catch (err) {
-    console.error("❌ Failed to connect to MongoDB:", err);
-    process.exit(1);
-  }
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+  });
 }
 
 startServer();

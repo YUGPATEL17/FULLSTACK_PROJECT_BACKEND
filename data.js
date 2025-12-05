@@ -1,104 +1,117 @@
+// backend/data.js
+// Seed data for lessons – a plain array of lesson objects
+
 const courses = [
   {
     id: 1,
     title: "Art & Painting",
     description: "Explore your creativity with colors and brushes.",
     location: "Room 101",
-    price: 20.0,
+    price: 20,
     spaces: 5,
     rating: 5,
-    image: "https://images.pexels.com/photos/102127/pexels-photo-102127.jpeg?auto=compress&cs=tinysrgb&w=800",
+    image:
+      "https://images.pexels.com/photos/102127/pexels-photo-102127.jpeg?auto=compress&cs=tinysrgb&w=800",
   },
   {
     id: 2,
     title: "Music & Guitar Lessons",
     description: "Strum your way to greatness with beginner guitar sessions.",
     location: "Music Room",
-    price: 18.0,
+    price: 18,
     spaces: 5,
     rating: 5,
-    image: "https://images.pexels.com/photos/144428/pexels-photo-144428.jpeg?auto=compress&cs=tinysrgb&w=800",
+    image:
+      "https://images.pexels.com/photos/144428/pexels-photo-144428.jpeg?auto=compress&cs=tinysrgb&w=800",
   },
   {
     id: 3,
     title: "Drama & Theatre",
     description: "Act, perform, and express yourself with confidence.",
     location: "Auditorium",
-    price: 22.0,
+    price: 22,
     spaces: 5,
     rating: 5,
-    image: "https://images.pexels.com/photos/167636/pexels-photo-167636.jpeg?auto=compress&cs=tinysrgb&w=800",
+    image:
+      "https://images.pexels.com/photos/167636/pexels-photo-167636.jpeg?auto=compress&cs=tinysrgb&w=800",
   },
   {
-  id: 4,
-  title: "Coding for Kids",
-  description: "Learn to build simple apps and games with code!",
-  location: "Computer Lab",
-  price: 28.0,
-  spaces: 5,
-  rating: 5,
-  image: "https://images.pexels.com/photos/1181671/pexels-photo-1181671.jpeg?auto=compress&cs=tinysrgb&w=800",
-},
-{
-  id: 5,
-  title: "Robotics Club",
-  description: "Build and program simple robots in a fun environment.",
-  location: "Tech Lab",
-  price: 25.0,
-  spaces: 5,
-  rating: 4,
-  image: "https://images.pexels.com/photos/256417/pexels-photo-256417.jpeg?auto=compress&cs=tinysrgb&w=800",
-},
+    id: 4,
+    title: "Coding for Kids",
+    description: "Learn to build simple apps and games with code!",
+    location: "Computer Lab",
+    price: 28,
+    spaces: 5,
+    rating: 5,
+    image:
+      "https://images.pexels.com/photos/1181671/pexels-photo-1181671.jpeg?auto=compress&cs=tinysrgb&w=800",
+  },
+  {
+    id: 5,
+    title: "Robotics Club",
+    description: "Build and program simple robots in a fun environment.",
+    location: "Tech Lab",
+    price: 25,
+    spaces: 5,
+    rating: 4,
+    image:
+      "https://images.pexels.com/photos/256417/pexels-photo-256417.jpeg?auto=compress&cs=tinysrgb&w=800",
+  },
   {
     id: 6,
     title: "Chess Club",
     description: "Sharpen your mind with strategy and problem-solving.",
     location: "Library",
-    price: 10.0,
+    price: 10,
     spaces: 5,
     rating: 4,
-    image: "https://images.pexels.com/photos/611495/pexels-photo-611495.jpeg?auto=compress&cs=tinysrgb&w=800",
+    image:
+      "https://images.pexels.com/photos/611495/pexels-photo-611495.jpeg?auto=compress&cs=tinysrgb&w=800",
   },
   {
     id: 7,
     title: "Science Experiments",
     description: "Hands-on experiments to discover how the world works.",
     location: "Science Lab",
-    price: 23.0,
+    price: 23,
     spaces: 5,
     rating: 5,
-    image: "https://images.pexels.com/photos/2280551/pexels-photo-2280551.jpeg?auto=compress&cs=tinysrgb&w=800",
+    image:
+      "https://images.pexels.com/photos/2280551/pexels-photo-2280551.jpeg?auto=compress&cs=tinysrgb&w=800",
   },
   {
     id: 8,
     title: "Dance Workshop",
     description: "Learn fun routines and boost your confidence on stage.",
     location: "Dance Studio",
-    price: 19.0,
+    price: 19,
     spaces: 5,
     rating: 4,
-    image: "https://images.pexels.com/photos/3771837/pexels-photo-3771837.jpeg?auto=compress&cs=tinysrgb&w=800",
+    image:
+      "https://images.pexels.com/photos/3771837/pexels-photo-3771837.jpeg?auto=compress&cs=tinysrgb&w=800",
   },
   {
     id: 9,
     title: "Creative Writing",
     description: "Create stories, poems and characters from your imagination.",
     location: "Room 202",
-    price: 15.0,
+    price: 15,
     spaces: 5,
     rating: 4,
-    image: "https://images.pexels.com/photos/261949/pexels-photo-261949.jpeg?auto=compress&cs=tinysrgb&w=800",
+    image:
+      "https://images.pexels.com/photos/261949/pexels-photo-261949.jpeg?auto=compress&cs=tinysrgb&w=800",
   },
   {
     id: 10,
     title: "Math Puzzles Club",
     description: "Solve fun math puzzles and brain teasers together.",
     location: "Room 105",
-    price: 12.0,
+    price: 12,
     spaces: 5,
     rating: 5,
-    image: "https://images.pexels.com/photos/5904936/pexels-photo-5904936.jpeg?auto=compress&cs=tinysrgb&w=800",
+    image:
+      "https://images.pexels.com/photos/5094936/pexels-photo-5094936.jpeg?auto=compress&cs=tinysrgb&w=800",
   },
 ];
 
-module.exports = { courses };
+module.exports = courses;
