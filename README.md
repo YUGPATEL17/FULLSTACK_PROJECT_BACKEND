@@ -1,212 +1,155 @@
-# FULLSTAKE_PROJECT_BACKEND# 🎓 After School Club – Backend (Node.js + Express + MongoDB)
+# After School Club – Backend API
+Node.js + Express + MongoDB
 
-This repository contains the **backend API** for the After School Club full-stack application.  
-It provides REST endpoints for managing lessons and handling student orders.
-
-The backend is built with **Node.js**, **Express**, and **MongoDB Atlas** and deployed using **Render**.
+This repository contains the backend API for the After School Club booking system.  
+It provides lesson data, order handling, and database integration used by the Vue.js frontend.  
+The backend is deployed on Render and uses MongoDB Atlas for cloud storage.
 
 ---
 
-## 🌐 Live Backend API (Render)
+## Live API
 
-**Base URL:**  
+Base URL  
 https://after-school-backend-ri4h.onrender.com
 
----
-
-## 🧩 Tech Stack
-
-- **Node.js**
-- **Express.js**
-- **MongoDB Atlas** (Cloud NoSQL Database)
-- **Native MongoDB Driver** (no Mongoose)
-- **CORS + JSON middleware**
-- **Render.com** cloud hosting
+Health check  
+https://after-school-backend-ri4h.onrender.com/
 
 ---
 
-## 📦 Project Structure
+## Backend Repository
 
-```
+https://github.com/YUGPATEL17/FULLSTACK_PROJECT_BACKEND
+
+---
+
+## Project Overview
+
+The backend handles all core application logic, including:
+- Retrieving lessons with search and sorting
+- Tracking available spaces based on orders
+- Creating and storing orders
+- Seeding the database with initial lessons
+- Providing endpoints used by the Vue.js frontend
+
+Technologies used:
+- Node.js  
+- Express.js  
+- MongoDB Atlas  
+- Native MongoDB driver  
+- Render for deployment  
+- dotenv and CORS
+
+---
+
+## Folder Structure
+
 backend/
-│
-├── data.js                 # Seed lesson data
-├── server.js               # Main server file (Express + MongoDB)
-├── .env                    # Environment variables (not committed)
+├── server.js
+├── controllers/
+│   ├── courses.js
+│   └── orders.js
+├── routes/
+│   ├── courses.js
+│   └── orders.js
+├── db/
+│   └── connect.js
+├── lessons.json
 ├── package.json
 └── README.md
-```
 
 ---
 
-## 🔧 Environment Variables
+## Environment Variables
 
-Your `.env` file must include:
+Create a `.env` file:
 
-```
-MONGO_URI=mongodb+srv://<your-connection-string>
+MONGO_URI=your_mongodb_connection_string
 DB_NAME=afterSchoolDB
 PORT=4000
-```
 
-These values are **also configured inside Render** for deployment.
-
----
-
-## 🚀 API Endpoints
-
-### ✅ Health Check
-**GET /**  
-Returns:
-```json
-"Backend running ✅"
-```
+(Render uses the same variable names.)
 
 ---
 
-## 📚 Lessons Endpoints
+## Running Locally
 
-### **GET /api/courses**
-Fetch all lessons.  
-Supports **search + sorting**.
-
-Example request:
-```
-GET /api/courses?q=math&sortField=price&sortOrder=asc
-```
-
-Response:
-```json
-{
-  "courses": [
-    {
-      "id": 1,
-      "title": "Math Club",
-      "price": 10,
-      "spaces": 5,
-      "location": "London",
-      ...
-    }
-  ]
-}
-```
-
----
-
-### **POST /api/courses/import**
-Imports seed lessons from `data.js` into MongoDB.  
-Used once during setup.
-
-Response:
-```json
-{
-  "message": "Lessons imported",
-  "count": 10
-}
-```
-
----
-
-## 🛒 Orders Endpoints
-
-### **POST /api/orders**
-Creates a new order and reduces lesson spaces.
-
-Example request:
-```json
-{
-  "name": "Alex",
-  "phone": "07123456789",
-  "total": 20,
-  "items": [
-    { "id": 1, "title": "Math Club", "quantity": 2, "price": 10 }
-  ]
-}
-```
-
-Response:
-```json
-{
-  "message": "Order saved successfully",
-  "order": {
-    "_id": "...",
-    "name": "Alex",
-    "phone": "07123456789",
-    "items": [...],
-    "total": 20
-  }
-}
-```
-
----
-
-### **GET /api/orders**
-Returns all placed orders, newest first.
-
-Response:
-```json
-{
-  "orders": [
-    {
-      "name": "Alex",
-      "phone": "07123456789",
-      "total": 20,
-      "createdAt": "2024-12-01T10:00:00Z",
-      "items": [...]
-    }
-  ]
-}
-```
-
----
-
-## 🛠 How to Run Backend Locally
-
-### 1️⃣ Install dependencies
-```
+Install dependencies:
 npm install
-```
 
-### 2️⃣ Add `.env` file (if missing)
-```
-MONGO_URI=your-atlas-connection-string
-DB_NAME=afterSchoolDB
-PORT=4000
-```
-
-### 3️⃣ Start server
-```
+Start the server:
 node server.js
-```
 
-Backend runs on:
-```
+Local API:
 http://localhost:4000
-```
 
 ---
 
-## ☁️ Deployment (Render)
+## Database Seeding
 
-This backend is deployed on **Render.com**, using:
+Insert default lessons by visiting:
 
-- **Build Command:** `npm install`
-- **Start Command:** `node server.js`
-- **Environment Variables:** MONGO_URI, DB_NAME, PORT
+http://localhost:4000/api/courses/import
 
-Render automatically restarts the server when new commits are pushed.
-
----
-
-## 🧑‍💻 Author
-
-**Yug Patel**  
-BSc Computer Science – Middlesex University London
+Production seeding:
+https://after-school-backend-ri4h.onrender.com/api/courses/import
 
 ---
 
-## 📄 Notes
+## API Endpoints
 
-- This backend powers the Vue.js frontend for the After School Club project.
-- Includes search, sorting, checkout, and live lesson availability updates.
-- Designed to meet CST3144 full-stack coursework requirements.
+GET /  
+Health check
+
+GET /api/courses  
+Returns all lessons with support for search and sorting  
+Query example: /api/courses?q=art&sortField=price&sortOrder=asc
+
+POST /api/courses/import  
+Seeds the database with default lessons
+
+POST /api/orders  
+Creates a new order and updates lesson availability
+
+GET /api/orders  
+Returns all orders
+
+---
+
+## Postman Collection
+
+A full API collection is located in the frontend repository:
+
+frontend/project_docs/after-school-api.postman_collection.json
+
+---
+
+## MongoDB Exports
+
+Final database exports are stored in:
+
+frontend/project_docs/
+  mongo_lessons_export.json
+  mongo_orders_export.json
+
+---
+
+## Deployment Information
+
+Hosted on Render:  
+https://after-school-backend-ri4h.onrender.com
+
+Build command: npm install  
+Start command: node server.js
+
+Environment:
+MONGO_URI  
+DB_NAME  
+PORT  
+
+---
+
+## Author
+Yug Patel  
+BSc Computer Science  
+Middlesex University London
