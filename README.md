@@ -201,7 +201,7 @@ Render automatically restarts the server when new commits are pushed.
 ## 🧑‍💻 Author
 
 **Yug Patel**  
-BSc (Hons) Computer Science – Middlesex University London
+BSc Computer Science – Middlesex University London
 
 ---
 
