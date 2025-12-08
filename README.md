@@ -1,1 +1,212 @@
-# FULLSTAKE_PROJECT_BACKEND
+# FULLSTAKE_PROJECT_BACKEND# 🎓 After School Club – Backend (Node.js + Express + MongoDB)
+
+This repository contains the **backend API** for the After School Club full-stack application.  
+It provides REST endpoints for managing lessons and handling student orders.
+
+The backend is built with **Node.js**, **Express**, and **MongoDB Atlas** and deployed using **Render**.
+
+---
+
+## 🌐 Live Backend API (Render)
+
+**Base URL:**  
+https://after-school-backend-ri4h.onrender.com
+
+---
+
+## 🧩 Tech Stack
+
+- **Node.js**
+- **Express.js**
+- **MongoDB Atlas** (Cloud NoSQL Database)
+- **Native MongoDB Driver** (no Mongoose)
+- **CORS + JSON middleware**
+- **Render.com** cloud hosting
+
+---
+
+## 📦 Project Structure
+
+```
+backend/
+│
+├── data.js                 # Seed lesson data
+├── server.js               # Main server file (Express + MongoDB)
+├── .env                    # Environment variables (not committed)
+├── package.json
+└── README.md
+```
+
+---
+
+## 🔧 Environment Variables
+
+Your `.env` file must include:
+
+```
+MONGO_URI=mongodb+srv://<your-connection-string>
+DB_NAME=afterSchoolDB
+PORT=4000
+```
+
+These values are **also configured inside Render** for deployment.
+
+---
+
+## 🚀 API Endpoints
+
+### ✅ Health Check
+**GET /**  
+Returns:
+```json
+"Backend running ✅"
+```
+
+---
+
+## 📚 Lessons Endpoints
+
+### **GET /api/courses**
+Fetch all lessons.  
+Supports **search + sorting**.
+
+Example request:
+```
+GET /api/courses?q=math&sortField=price&sortOrder=asc
+```
+
+Response:
+```json
+{
+  "courses": [
+    {
+      "id": 1,
+      "title": "Math Club",
+      "price": 10,
+      "spaces": 5,
+      "location": "London",
+      ...
+    }
+  ]
+}
+```
+
+---
+
+### **POST /api/courses/import**
+Imports seed lessons from `data.js` into MongoDB.  
+Used once during setup.
+
+Response:
+```json
+{
+  "message": "Lessons imported",
+  "count": 10
+}
+```
+
+---
+
+## 🛒 Orders Endpoints
+
+### **POST /api/orders**
+Creates a new order and reduces lesson spaces.
+
+Example request:
+```json
+{
+  "name": "Alex",
+  "phone": "07123456789",
+  "total": 20,
+  "items": [
+    { "id": 1, "title": "Math Club", "quantity": 2, "price": 10 }
+  ]
+}
+```
+
+Response:
+```json
+{
+  "message": "Order saved successfully",
+  "order": {
+    "_id": "...",
+    "name": "Alex",
+    "phone": "07123456789",
+    "items": [...],
+    "total": 20
+  }
+}
+```
+
+---
+
+### **GET /api/orders**
+Returns all placed orders, newest first.
+
+Response:
+```json
+{
+  "orders": [
+    {
+      "name": "Alex",
+      "phone": "07123456789",
+      "total": 20,
+      "createdAt": "2024-12-01T10:00:00Z",
+      "items": [...]
+    }
+  ]
+}
+```
+
+---
+
+## 🛠 How to Run Backend Locally
+
+### 1️⃣ Install dependencies
+```
+npm install
+```
+
+### 2️⃣ Add `.env` file (if missing)
+```
+MONGO_URI=your-atlas-connection-string
+DB_NAME=afterSchoolDB
+PORT=4000
+```
+
+### 3️⃣ Start server
+```
+node server.js
+```
+
+Backend runs on:
+```
+http://localhost:4000
+```
+
+---
+
+## ☁️ Deployment (Render)
+
+This backend is deployed on **Render.com**, using:
+
+- **Build Command:** `npm install`
+- **Start Command:** `node server.js`
+- **Environment Variables:** MONGO_URI, DB_NAME, PORT
+
+Render automatically restarts the server when new commits are pushed.
+
+---
+
+## 🧑‍💻 Author
+
+**Yug Patel**  
+BSc (Hons) Computer Science – Middlesex University London
+
+---
+
+## 📄 Notes
+
+- This backend powers the Vue.js frontend for the After School Club project.
+- Includes search, sorting, checkout, and live lesson availability updates.
+- Designed to meet CST3144 full-stack coursework requirements.
