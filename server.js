@@ -114,29 +114,48 @@ app.get("/api/courses", async (req, res) => {
 // Call this once (locally or on Render):
 //   POST http://localhost:4000/api/courses/import
 //   POST https://your-render-url.onrender.com/api/courses/import
-app.post("/api/courses/import", async (req, res) => {
+app.post("/api/orders", async (req, res) => {
   try {
-    if (!Array.isArray(courses)) {
-      console.error("❌ courses from data.js is not an array");
-      return res
-        .status(500)
-        .json({ message: "Seed data is not an array (check data.js export)" });
+    const { name, phone, total, items } = req.body;
+
+    // --- VALIDATION STARTS HERE ---
+    const nameRegex = /^[A-Za-z ]+$/;        // only letters + spaces
+    const phoneRegex = /^[0-9]{10,15}$/;     // numbers only, length 10-15
+
+    if (!nameRegex.test(name)) {
+      return res.status(400).json({ error: "Name must contain letters only." });
     }
 
-    await lessonsCollection.deleteMany({});
-    const insertResult = await lessonsCollection.insertMany(courses);
+    if (!phoneRegex.test(phone)) {
+      return res.status(400).json({ error: "Phone must be numbers only (10–15 digits)." });
+    }
 
-    console.log(
-      `✅ Imported ${insertResult.insertedCount} lessons into MongoDB (${DB_NAME}.lessons)`
-    );
+    if (!items || items.length === 0) {
+      return res.status(400).json({ error: "Order must include at least one item." });
+    }
+    // --- VALIDATION ENDS HERE ---
 
-    res.json({
-      message: "Lessons imported",
-      count: insertResult.insertedCount,
+    const db = client.db(DB_NAME);
+    const ordersCollection = db.collection("orders");
+
+    const order = {
+      name,
+      phone,
+      total,
+      items,
+      createdAt: new Date()
+    };
+
+    const result = await ordersCollection.insertOne(order);
+
+    res.status(201).json({
+      message: "Order saved successfully",
+      order: { _id: result.insertedId, ...order }
     });
+
   } catch (err) {
-    console.error("Error importing lessons:", err);
-    res.status(500).json({ message: "Error importing lessons" });
+    console.error(err);
+    res.status(500).json({ error: "Server error while saving order" });
   }
 });
 
@@ -149,6 +168,11 @@ app.post("/api/orders", async (req, res) => {
   try {
     const { name, phone, items, total } = req.body;
 
+    // --- Validation rules ---
+    const nameRegex = /^[A-Za-z\s]+$/; // letters + spaces only
+    const phoneRegex = /^[0-9]+$/;     // digits only
+
+    // Basic presence checks
     if (
       !name ||
       !phone ||
@@ -159,7 +183,21 @@ app.post("/api/orders", async (req, res) => {
       return res.status(400).json({ message: "Invalid order data" });
     }
 
-    // 4.1 Reduce spaces for each lesson in the order
+    // Name must be letters + spaces only
+    if (!nameRegex.test(name)) {
+      return res.status(400).json({
+        message: "Invalid name. Name must contain letters and spaces only.",
+      });
+    }
+
+    // Phone must be numbers only
+    if (!phoneRegex.test(phone)) {
+      return res.status(400).json({
+        message: "Invalid phone. Phone must contain digits only.",
+      });
+    }
+
+    // --- 4.1 Reduce spaces for each lesson in the order ---
     for (const item of items) {
       const lesson = await lessonsCollection.findOne({ id: item.id });
 
@@ -179,7 +217,7 @@ app.post("/api/orders", async (req, res) => {
       );
     }
 
-    // 4.2 Save the order itself
+    // --- 4.2 Save the order itself ---
     const orderDoc = {
       name,
       phone,
